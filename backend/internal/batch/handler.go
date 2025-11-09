@@ -121,8 +121,9 @@ func (h *BatchHandler) Create(c echo.Context) error {
 		}
 
 		err = ch.Publish(utils.ImageGoDirect, utils.ImageGoDirect, false, false, amqp.Publishing{
-			ContentType: "application/json",
-			Body:        data,
+			ContentType:  "application/json",
+			Body:         data,
+			DeliveryMode: amqp.Persistent,
 		})
 		if err != nil {
 			fmt.Printf("error publishing message: %v", err)

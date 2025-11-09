@@ -60,9 +60,14 @@ func main() {
 		e.Logger.Fatalf("failed to declare queue: %v", err)
 	}
 
+	err = ch.ExchangeDeclare(utils.ImageGoDirect, "direct", true, false, false, false, nil)
+	if err != nil {
+		e.Logger.Fatalf("failed to declare exchange: %v", err)
+	}
+
 	err = ch.QueueBind(imageTaskQueue.Name, utils.ImageGoDirect, utils.ImageGoDirect, false, nil)
 	if err != nil {
-
+		e.Logger.Fatalf("failed to bind queue: %v", err)
 	}
 
 	awsCfg, err := config.LoadDefaultConfig(context.TODO())
