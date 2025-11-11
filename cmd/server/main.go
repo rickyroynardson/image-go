@@ -12,20 +12,31 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/rickyroynardson/image-go/cmd/server/docs"
+	_ "github.com/rickyroynardson/image-go/cmd/server/docs"
 	"github.com/rickyroynardson/image-go/internal/auth"
 	"github.com/rickyroynardson/image-go/internal/batch"
 	"github.com/rickyroynardson/image-go/internal/database"
 	"github.com/rickyroynardson/image-go/internal/middleware"
 	"github.com/rickyroynardson/image-go/internal/pubsub"
 	"github.com/rickyroynardson/image-go/internal/utils"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 func main() {
 	e := echo.New()
 
 	err := godotenv.Load()
 	if err != nil {
 		e.Logger.Fatalf("failed to load env: %v", err)
+	}
+	postgresURL := os.Getenv("POSTGRES_URL")
+	if postgresURL == "" {
+		e.Logger.Fatal("POSTGRES_URL is not set")
 	}
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -43,6 +54,13 @@ func main() {
 	if rabbitMqURL == "" {
 		e.Logger.Fatal("RABBIT_MQ_URL is not set")
 	}
+
+	docs.SwaggerInfo.Title = "Image Go API"
+	docs.SwaggerInfo.Description = "Image watermark processing service."
+	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Host = "localhost:3000"
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	docs.SwaggerInfo.Schemes = []string{"http", "https"}
 
 	conn, err := amqp.Dial(rabbitMqURL)
 	if err != nil {
@@ -68,7 +86,7 @@ func main() {
 		RabbitMQConn:     conn,
 	}
 
-	db, err := sql.Open("postgres", "postgres://rickyroynardson:@localhost:5432/image_go?sslmode=disable")
+	db, err := sql.Open("postgres", postgresURL)
 	if err != nil {
 		e.Logger.Fatalf("failed to connect sql database: %v", err)
 	}
@@ -83,6 +101,7 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "image-go")
 	})
+	e.GET("/swagger/*", echoSwagger.WrapHandler)
 	apiV1 := e.Group("/api/v1")
 	apiV1.POST("/login", authHandler.Login)
 	apiV1.POST("/register", authHandler.Register)

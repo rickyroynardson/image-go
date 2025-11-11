@@ -41,21 +41,21 @@ func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (Image
 }
 
 const getImageByID = `-- name: GetImageByID :one
-SELECT i.id, i.batch_id, i.key, i.original_url, i.processed_url, i.status, i.created_at, i.updated_at, i.deleted_at, b.watermark_url, b.watermark_text FROM images i INNER JOIN batches b ON b.id = i.batch_id WHERE i.id = $1 AND i.deleted_at IS NULL AND b.deleted_at IS NULL
+SELECT i.id, i.batch_id, i.key, i.original_url, i.processed_url, i.status, i.created_at, i.updated_at, i.deleted_at, b.watermark_url, b.watermark_key FROM images i INNER JOIN batches b ON b.id = i.batch_id WHERE i.id = $1 AND i.deleted_at IS NULL AND b.deleted_at IS NULL
 `
 
 type GetImageByIDRow struct {
-	ID            uuid.UUID
-	BatchID       uuid.UUID
-	Key           string
-	OriginalUrl   string
-	ProcessedUrl  sql.NullString
-	Status        ImageStatus
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
-	WatermarkUrl  sql.NullString
-	WatermarkText sql.NullString
+	ID           uuid.UUID
+	BatchID      uuid.UUID
+	Key          string
+	OriginalUrl  string
+	ProcessedUrl sql.NullString
+	Status       ImageStatus
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    sql.NullTime
+	WatermarkUrl sql.NullString
+	WatermarkKey sql.NullString
 }
 
 func (q *Queries) GetImageByID(ctx context.Context, id uuid.UUID) (GetImageByIDRow, error) {
@@ -72,7 +72,7 @@ func (q *Queries) GetImageByID(ctx context.Context, id uuid.UUID) (GetImageByIDR
 		&i.UpdatedAt,
 		&i.DeletedAt,
 		&i.WatermarkUrl,
-		&i.WatermarkText,
+		&i.WatermarkKey,
 	)
 	return i, err
 }

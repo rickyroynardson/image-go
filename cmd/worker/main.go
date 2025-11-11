@@ -23,6 +23,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load env: %v", err)
 	}
+	postgresURL := os.Getenv("POSTGRES_URL")
+	if postgresURL == "" {
+		log.Fatalln("POSTGRES_URL is not set")
+	}
 	s3Bucket := os.Getenv("S3_BUCKET")
 	if s3Bucket == "" {
 		log.Fatalln("S3_BUCKET is not set")
@@ -36,7 +40,7 @@ func main() {
 		log.Fatalln("RABBIT_MQ_URL is not set")
 	}
 
-	db, err := sql.Open("postgres", "postgres://rickyroynardson:@localhost:5432/image_go?sslmode=disable")
+	db, err := sql.Open("postgres", postgresURL)
 	if err != nil {
 		log.Fatalf("failed to connect sql database: %v", err)
 	}

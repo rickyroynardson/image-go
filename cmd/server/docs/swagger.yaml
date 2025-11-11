@@ -1,0 +1,225 @@
+definitions:
+  github_com_rickyroynardson_image-go_internal_utils.ErrorResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  github_com_rickyroynardson_image-go_internal_utils.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+    type: object
+  internal_auth.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_auth.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/internal_auth.User'
+    type: object
+  internal_auth.RefreshResponse:
+    properties:
+      access_token:
+        type: string
+    type: object
+  internal_auth.RegisterRequest:
+    properties:
+      confirm_password:
+        type: string
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - confirm_password
+    - email
+    - password
+    type: object
+  internal_auth.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /batches:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a new batch with images and optional watermark
+      parameters:
+      - description: Batch name
+        in: formData
+        name: name
+        type: string
+      - description: Watermark URL
+        in: formData
+        name: watermark_url
+        type: string
+      - description: Image files (multiple)
+        in: formData
+        name: files
+        required: true
+        type: file
+      - description: Watermark image file
+        in: formData
+        name: watermark
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create batch
+      tags:
+      - batch
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Login with email and password
+      parameters:
+      - description: Login Request
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.LoginResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      summary: Login
+      tags:
+      - authentication
+  /refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refresh access token using refresh token (can be provided as cookie
+        or Authorization header)
+      parameters:
+      - description: Bearer Token (refresh token)
+        in: header
+        name: Authorization
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.RefreshResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - authentication
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user
+      parameters:
+      - description: Register Request
+        in: body
+        name: register
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      summary: Register
+      tags:
+      - authentication
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

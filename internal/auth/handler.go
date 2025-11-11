@@ -25,6 +25,18 @@ func NewHandler(validator *validator.Validate, dbQueries *database.Queries, conf
 	}
 }
 
+// Login godoc
+// @Summary Login
+// @Description Login with email and password
+// @Tags authentication
+// @Accept json
+// @Produce json
+// @Param login body LoginRequest true "Login Request"
+// @Success 200 {object} utils.SuccessResponse{data=LoginResponse}
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /login [post]
 func (h *AuthHandler) Login(c echo.Context) error {
 	var body LoginRequest
 	if err := c.Bind(&body); err != nil {
@@ -90,6 +102,17 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	return utils.RespondJSON(c, http.StatusOK, "login success", res)
 }
 
+// Register godoc
+// @Summary Register
+// @Description Register a new user
+// @Tags authentication
+// @Accept json
+// @Produce json
+// @Param register body RegisterRequest true "Register Request"
+// @Success 201 {object} utils.SuccessResponse{data=User}
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /register [post]
 func (h *AuthHandler) Register(c echo.Context) error {
 	var body RegisterRequest
 	if err := c.Bind(&body); err != nil {
@@ -123,6 +146,17 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	return utils.RespondJSON(c, http.StatusCreated, "register success", resUser)
 }
 
+// Refresh godoc
+// @Summary Refresh access token
+// @Description Refresh access token using refresh token (can be provided as cookie or Authorization header)
+// @Tags authentication
+// @Accept json
+// @Produce json
+// @Param Authorization header string false "Bearer Token (refresh token)"
+// @Success 200 {object} utils.SuccessResponse{data=RefreshResponse}
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /refresh [post]
 func (h *AuthHandler) Refresh(c echo.Context) error {
 	var refreshToken string
 	cookie, err := c.Cookie("refresh_token")

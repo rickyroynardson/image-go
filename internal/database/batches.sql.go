@@ -13,21 +13,21 @@ import (
 )
 
 const createBatch = `-- name: CreateBatch :one
-INSERT INTO batches(user_id, name, watermark_text, watermark_url) VALUES ($1, $2, $3, $4) RETURNING id, user_id, name, watermark_text, watermark_url, created_at, updated_at, deleted_at
+INSERT INTO batches(user_id, name, watermark_key, watermark_url) VALUES ($1, $2, $3, $4) RETURNING id, user_id, name, watermark_url, created_at, updated_at, deleted_at, watermark_key
 `
 
 type CreateBatchParams struct {
-	UserID        uuid.UUID
-	Name          sql.NullString
-	WatermarkText sql.NullString
-	WatermarkUrl  sql.NullString
+	UserID       uuid.UUID
+	Name         sql.NullString
+	WatermarkKey sql.NullString
+	WatermarkUrl sql.NullString
 }
 
 func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error) {
 	row := q.db.QueryRowContext(ctx, createBatch,
 		arg.UserID,
 		arg.Name,
-		arg.WatermarkText,
+		arg.WatermarkKey,
 		arg.WatermarkUrl,
 	)
 	var i Batch
@@ -35,11 +35,11 @@ func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch
 		&i.ID,
 		&i.UserID,
 		&i.Name,
-		&i.WatermarkText,
 		&i.WatermarkUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.WatermarkKey,
 	)
 	return i, err
 }

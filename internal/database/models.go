@@ -58,14 +58,14 @@ func (ns NullImageStatus) Value() (driver.Value, error) {
 }
 
 type Batch struct {
-	ID            uuid.UUID
-	UserID        uuid.UUID
-	Name          sql.NullString
-	WatermarkText sql.NullString
-	WatermarkUrl  sql.NullString
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     sql.NullTime
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Name         sql.NullString
+	WatermarkUrl sql.NullString
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    sql.NullTime
+	WatermarkKey sql.NullString
 }
 
 type Image struct {
