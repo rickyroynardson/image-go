@@ -2,6 +2,6 @@
 
 ### Migrate SQL
 ```bash
-cd backend/sql/schema
+cd /sql/schema
 goose postgres [DB_URL] up
 ```
