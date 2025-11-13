@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -44,6 +46,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect sql database: %v", err)
 	}
+	defer db.Close()
+
+	db.SetMaxIdleConns(10)
+	db.SetMaxOpenConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(10 * time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err = db.PingContext(ctx); err != nil {
+		log.Fatalf("failed to ping db: %v", err)
+	}
 
 	dbQueries := database.New(db)
 
@@ -73,6 +88,9 @@ func main() {
 	log.Println("worker started...")
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
+
+	log.Println("shutting down worker...")
+	time.Sleep(5 * time.Second)
 }

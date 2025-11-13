@@ -5,22 +5,28 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
+	echoMiddleware "github.com/labstack/echo/v4/middleware"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rickyroynardson/image-go/cmd/server/docs"
 	_ "github.com/rickyroynardson/image-go/cmd/server/docs"
 	"github.com/rickyroynardson/image-go/internal/auth"
 	"github.com/rickyroynardson/image-go/internal/batch"
 	"github.com/rickyroynardson/image-go/internal/database"
+	"github.com/rickyroynardson/image-go/internal/image"
 	"github.com/rickyroynardson/image-go/internal/middleware"
 	"github.com/rickyroynardson/image-go/internal/pubsub"
 	"github.com/rickyroynardson/image-go/internal/utils"
 	echoSwagger "github.com/swaggo/echo-swagger"
+	"golang.org/x/time/rate"
 )
 
 // @securityDefinitions.apikey BearerAuth
@@ -90,6 +96,19 @@ func main() {
 	if err != nil {
 		e.Logger.Fatalf("failed to connect sql database: %v", err)
 	}
+	defer db.Close()
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(10 * time.Minute)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		e.Logger.Fatalf("failed to ping db: %v", err)
+	}
 
 	dbQueries := database.New(db)
 
@@ -97,6 +116,10 @@ func main() {
 
 	authHandler := auth.NewHandler(validator, dbQueries, cfg)
 	batchHandler := batch.NewHandler(validator, dbQueries, cfg)
+	imageHandler := image.NewHandler(validator, dbQueries, cfg)
+
+	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.DefaultCORSConfig))
+	e.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(rate.Limit(20))))
 
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "image-go")
@@ -108,6 +131,25 @@ func main() {
 	apiV1.POST("/refresh", authHandler.Refresh)
 
 	apiV1.Use(middleware.Authenticated(cfg))
+	apiV1.GET("/batches", batchHandler.GetAll)
+	apiV1.GET("/batches/:batchID", batchHandler.GetByID)
 	apiV1.POST("/batches", batchHandler.Create)
-	e.Logger.Fatal(e.Start(":3000"))
+	apiV1.DELETE("/batches/:batchID", batchHandler.DeleteByID)
+
+	apiV1.DELETE("/images/:imageID", imageHandler.DeleteByID)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		e.Logger.Fatal(e.Start(":3000"))
+	}()
+
+	<-ctx.Done()
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := e.Shutdown(ctx); err != nil {
+		e.Logger.Fatal(err)
+	}
 }

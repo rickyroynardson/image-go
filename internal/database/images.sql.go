@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createImage = `-- name: CreateImage :one
@@ -38,6 +39,20 @@ func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (Image
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const deleteImageByID = `-- name: DeleteImageByID :exec
+UPDATE images SET deleted_at = NOW() WHERE id = $1 AND batch_id = ANY($2::UUID[])
+`
+
+type DeleteImageByIDParams struct {
+	ID      uuid.UUID
+	Column2 []uuid.UUID
+}
+
+func (q *Queries) DeleteImageByID(ctx context.Context, arg DeleteImageByIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteImageByID, arg.ID, pq.Array(arg.Column2))
+	return err
 }
 
 const getImageByID = `-- name: GetImageByID :one
@@ -75,6 +90,43 @@ func (q *Queries) GetImageByID(ctx context.Context, id uuid.UUID) (GetImageByIDR
 		&i.WatermarkKey,
 	)
 	return i, err
+}
+
+const getImagesByBatchID = `-- name: GetImagesByBatchID :many
+SELECT id, batch_id, key, original_url, processed_url, status, created_at, updated_at, deleted_at FROM images WHERE batch_id = $1 AND deleted_at IS NULL ORDER BY created_at
+`
+
+func (q *Queries) GetImagesByBatchID(ctx context.Context, batchID uuid.UUID) ([]Image, error) {
+	rows, err := q.db.QueryContext(ctx, getImagesByBatchID, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Image
+	for rows.Next() {
+		var i Image
+		if err := rows.Scan(
+			&i.ID,
+			&i.BatchID,
+			&i.Key,
+			&i.OriginalUrl,
+			&i.ProcessedUrl,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateImageByID = `-- name: UpdateImageByID :exec

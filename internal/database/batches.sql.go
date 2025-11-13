@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -42,4 +43,114 @@ func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch
 		&i.WatermarkKey,
 	)
 	return i, err
+}
+
+const deleteBatchByID = `-- name: DeleteBatchByID :exec
+UPDATE batches SET deleted_at = NOW() WHERE id = $1 AND user_id = $2
+`
+
+type DeleteBatchByIDParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteBatchByID(ctx context.Context, arg DeleteBatchByIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBatchByID, arg.ID, arg.UserID)
+	return err
+}
+
+const getAllUserBatches = `-- name: GetAllUserBatches :many
+SELECT b.id, b.user_id, b.name, b.watermark_url, b.created_at, b.updated_at, b.deleted_at, b.watermark_key, COUNT(i.id) as image_count, COUNT(i.id) FILTER (WHERE i.status = 'pending') AS image_pending_count, COUNT(i.id) FILTER (WHERE i.status = 'processing') AS image_processing_count, COUNT(i.id) FILTER (WHERE i.status = 'completed') AS image_completed_count, COUNT(i.id) FILTER (WHERE i.status = 'failed') AS image_failed_count FROM batches b INNER JOIN images i ON i.batch_id = b.id AND i.deleted_at IS NULL WHERE b.user_id = $1 AND b.deleted_at IS NULL GROUP BY b.id ORDER BY b.created_at DESC
+`
+
+type GetAllUserBatchesRow struct {
+	ID                   uuid.UUID
+	UserID               uuid.UUID
+	Name                 sql.NullString
+	WatermarkUrl         sql.NullString
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	DeletedAt            sql.NullTime
+	WatermarkKey         sql.NullString
+	ImageCount           int64
+	ImagePendingCount    int64
+	ImageProcessingCount int64
+	ImageCompletedCount  int64
+	ImageFailedCount     int64
+}
+
+func (q *Queries) GetAllUserBatches(ctx context.Context, userID uuid.UUID) ([]GetAllUserBatchesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAllUserBatches, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllUserBatchesRow
+	for rows.Next() {
+		var i GetAllUserBatchesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.WatermarkUrl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.WatermarkKey,
+			&i.ImageCount,
+			&i.ImagePendingCount,
+			&i.ImageProcessingCount,
+			&i.ImageCompletedCount,
+			&i.ImageFailedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserBatchByID = `-- name: GetUserBatchByID :one
+SELECT id, user_id, name, watermark_url, created_at, updated_at, deleted_at, watermark_key FROM batches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+`
+
+type GetUserBatchByIDParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetUserBatchByID(ctx context.Context, arg GetUserBatchByIDParams) (Batch, error) {
+	row := q.db.QueryRowContext(ctx, getUserBatchByID, arg.ID, arg.UserID)
+	var i Batch
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.WatermarkUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.WatermarkKey,
+	)
+	return i, err
+}
+
+const hardDeleteBatchByID = `-- name: HardDeleteBatchByID :exec
+DELETE FROM batches WHERE id = $1 AND user_id = $2
+`
+
+type HardDeleteBatchByIDParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) HardDeleteBatchByID(ctx context.Context, arg HardDeleteBatchByIDParams) error {
+	_, err := q.db.ExecContext(ctx, hardDeleteBatchByID, arg.ID, arg.UserID)
+	return err
 }

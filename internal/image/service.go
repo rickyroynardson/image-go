@@ -46,8 +46,9 @@ func ProcessImage(dbQueries *database.Queries, cfg *utils.Config) func(batch.Ima
 		}
 		defer obj.Body.Close()
 
+		// TODO: cache watermark image to avoid multiple s3 get object in short time
 		var watermarkImg image.Image
-		if img.WatermarkKey.Valid {
+		if img.WatermarkKey.Valid && img.WatermarkKey.String != "" {
 			watermarkObj, err := cfg.S3Client.GetObject(context.Background(), &s3.GetObjectInput{
 				Bucket: aws.String(cfg.S3Bucket),
 				Key:    aws.String(img.WatermarkKey.String),

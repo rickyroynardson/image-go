@@ -40,7 +40,7 @@ func NewHandler(validator *validator.Validate, dbQueries *database.Queries, conf
 func (h *AuthHandler) Login(c echo.Context) error {
 	var body LoginRequest
 	if err := c.Bind(&body); err != nil {
-		return utils.RespondError(c, http.StatusBadRequest, err.Error())
+		return utils.RespondError(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	if err := h.validator.Struct(body); err != nil {
@@ -58,12 +58,12 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	token, err := utils.GenerateJWT(user.ID, h.config.JwtSecret)
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
 	refresh, err := utils.GenerateRefresh()
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
 	refreshToken, err := h.dbQueries.CreateRefreshToken(c.Request().Context(), database.CreateRefreshTokenParams{
@@ -72,7 +72,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		ExpiresAt: time.Now().UTC().Add(30 * 24 * time.Hour),
 	})
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
 	refreshCookie := new(http.Cookie)
@@ -116,7 +116,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 func (h *AuthHandler) Register(c echo.Context) error {
 	var body RegisterRequest
 	if err := c.Bind(&body); err != nil {
-		return utils.RespondError(c, http.StatusBadRequest, err.Error())
+		return utils.RespondError(c, http.StatusBadRequest, "invalid request body")
 	}
 
 	if err := h.validator.Struct(body); err != nil {
@@ -125,7 +125,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 
 	hashedPassword, err := utils.HashPassword(body.Password)
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
 	user, err := h.dbQueries.CreateUser(c.Request().Context(), database.CreateUserParams{
@@ -133,7 +133,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
 	resUser := User{
@@ -186,10 +186,10 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 
 	accessToken, err := utils.GenerateJWT(token.UserID, h.config.JwtSecret)
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
-	return utils.RespondJSON(c, http.StatusOK, "refresh success", struct {
+	return utils.RespondJSON(c, http.StatusOK, "token refreshed successfully", struct {
 		AccessToken string `json:"access_token"`
 	}{
 		AccessToken: accessToken,

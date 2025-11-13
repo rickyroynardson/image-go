@@ -1,4 +1,16 @@
 definitions:
+  github_com_rickyroynardson_image-go_internal_database.ImageStatus:
+    enum:
+    - pending
+    - processing
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - ImageStatusPending
+    - ImageStatusProcessing
+    - ImageStatusCompleted
+    - ImageStatusFailed
   github_com_rickyroynardson_image-go_internal_utils.ErrorResponse:
     properties:
       message:
@@ -58,10 +70,106 @@ definitions:
       updated_at:
         type: string
     type: object
+  internal_batch.BatchResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      images:
+        items:
+          $ref: '#/definitions/internal_batch.ImageResponse'
+        type: array
+      name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+      watermark_key:
+        type: string
+      watermark_url:
+        type: string
+    type: object
+  internal_batch.BatchesResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      image_completed_count:
+        type: integer
+      image_count:
+        type: integer
+      image_failed_count:
+        type: integer
+      image_pending_count:
+        type: integer
+      image_processing_count:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+      watermark_key:
+        type: string
+      watermark_url:
+        type: string
+    type: object
+  internal_batch.ImageResponse:
+    properties:
+      batch_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      key:
+        type: string
+      original_url:
+        type: string
+      processed_url:
+        type: string
+      status:
+        $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_database.ImageStatus'
+      updated_at:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
   /batches:
+    get:
+      description: Retrieve all batches for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/internal_batch.BatchesResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get list of batches
+      tags:
+      - batches
     post:
       consumes:
       - multipart/form-data
@@ -70,10 +178,6 @@ paths:
       - description: Batch name
         in: formData
         name: name
-        type: string
-      - description: Watermark URL
-        in: formData
-        name: watermark_url
         type: string
       - description: Image files (multiple)
         in: formData
@@ -90,7 +194,12 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -107,7 +216,124 @@ paths:
       - BearerAuth: []
       summary: Create batch
       tags:
-      - batch
+      - batches
+  /batches/{batchID}:
+    delete:
+      description: Delete a specific batch by its ID for the authenticated user
+      parameters:
+      - description: Batch ID
+        in: path
+        name: batchID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete batch by ID
+      tags:
+      - batches
+    get:
+      description: Retrieve a specific batch by its ID for the authenticated user
+      parameters:
+      - description: Batch ID
+        in: path
+        name: batchID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_batch.BatchResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get batch by ID
+      tags:
+      - batches
+  /images/{imageID}:
+    delete:
+      description: Delete an image by its ID for the authenticated user
+      parameters:
+      - description: Image ID
+        in: path
+        name: imageID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.SuccessResponse'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_rickyroynardson_image-go_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an image by ID
+      tags:
+      - images
   /login:
     post:
       consumes:

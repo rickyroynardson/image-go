@@ -2,6 +2,7 @@ package batch
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -30,34 +31,139 @@ func NewHandler(validator *validator.Validate, dbQueries *database.Queries, conf
 	}
 }
 
+// GetAll godoc
+// @Summary Get list of batches
+// @Description Retrieve all batches for the authenticated user
+// @Tags batches
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} utils.SuccessResponse{data=[]BatchesResponse}
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /batches [get]
+func (h *BatchHandler) GetAll(c echo.Context) error {
+	userID := c.Get("userID").(uuid.UUID)
+
+	batches, err := h.dbQueries.GetAllUserBatches(c.Request().Context(), userID)
+	if err != nil {
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
+	}
+
+	batchesRes := make([]BatchesResponse, len(batches))
+	for i, b := range batches {
+		var watermarkKey, watermarkURL string
+		if b.WatermarkKey.Valid {
+			watermarkKey = b.WatermarkKey.String
+		}
+		if b.WatermarkUrl.Valid {
+			watermarkURL = b.WatermarkUrl.String
+		}
+		batchesRes[i] = BatchesResponse{
+			ID:                   b.ID.String(),
+			UserID:               b.UserID.String(),
+			Name:                 b.Name.String,
+			WatermarkKey:         watermarkKey,
+			WatermarkURL:         watermarkURL,
+			CreatedAt:            b.CreatedAt,
+			UpdatedAt:            b.UpdatedAt,
+			ImageCount:           int(b.ImageCount),
+			ImagePendingCount:    int(b.ImagePendingCount),
+			ImageProcessingCount: int(b.ImageProcessingCount),
+			ImageCompletedCount:  int(b.ImageCompletedCount),
+			ImageFailedCount:     int(b.ImageFailedCount),
+		}
+	}
+
+	return utils.RespondJSON(c, http.StatusOK, "batches retrieved successfully", batchesRes)
+}
+
+// GetByID godoc
+// @Summary Get batch by ID
+// @Description Retrieve a specific batch by its ID for the authenticated user
+// @Tags batches
+// @Produce json
+// @Security BearerAuth
+// @Param batchID path string true "Batch ID"
+// @Success 200 {object} utils.SuccessResponse{data=BatchResponse}
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 404 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /batches/{batchID} [get]
+func (h *BatchHandler) GetByID(c echo.Context) error {
+	batchID := c.Param("batchID")
+	userID := c.Get("userID").(uuid.UUID)
+
+	batchUUID, err := uuid.Parse(batchID)
+	if err != nil {
+		return utils.RespondError(c, http.StatusBadRequest, "invalid batch ID")
+	}
+
+	batch, err := h.dbQueries.GetUserBatchByID(c.Request().Context(), database.GetUserBatchByIDParams{
+		ID:     batchUUID,
+		UserID: userID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return utils.RespondError(c, http.StatusNotFound, "batch not found")
+		}
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
+	}
+
+	images, err := h.dbQueries.GetImagesByBatchID(c.Request().Context(), batch.ID)
+	if err != nil {
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
+	}
+	imagesRes := make([]ImageResponse, len(images))
+	for i, img := range images {
+		imagesRes[i] = ImageResponse{
+			ID:           img.ID,
+			BatchID:      img.BatchID,
+			Key:          img.Key,
+			OriginalURL:  img.OriginalUrl,
+			ProcessedURL: img.ProcessedUrl.String,
+			Status:       img.Status,
+			CreatedAt:    img.CreatedAt,
+			UpdatedAt:    img.UpdatedAt,
+		}
+	}
+
+	res := BatchResponse{
+		ID:           batch.ID,
+		UserID:       batch.UserID,
+		Name:         batch.Name.String,
+		WatermarkKey: batch.WatermarkKey.String,
+		WatermarkURL: batch.WatermarkUrl.String,
+		CreatedAt:    batch.CreatedAt,
+		UpdatedAt:    batch.UpdatedAt,
+		Images:       imagesRes,
+	}
+
+	return utils.RespondJSON(c, http.StatusOK, "batch retrieved successfully", res)
+}
+
 // Create godoc
 // @Summary Create batch
 // @Description Create a new batch with images and optional watermark
-// @Tags batch
+// @Tags batches
 // @Accept multipart/form-data
 // @Produce json
 // @Security BearerAuth
 // @Param name formData string false "Batch name"
-// @Param watermark_url formData string false "Watermark URL"
 // @Param files formData file true "Image files (multiple)"
 // @Param watermark formData file false "Watermark image file"
-// @Success 201 {object} utils.SuccessResponse
+// @Success 201 {object} utils.SuccessResponse{data=nil}
 // @Failure 400 {object} utils.ErrorResponse
 // @Failure 401 {object} utils.ErrorResponse
 // @Failure 500 {object} utils.ErrorResponse
 // @Router /batches [post]
 func (h *BatchHandler) Create(c echo.Context) error {
 	name := c.FormValue("name")
-	watermark_url := c.FormValue("watermark_url")
 	userID := c.Get("userID").(uuid.UUID)
-
-	fmt.Println(name)
-	fmt.Println(watermark_url)
-	fmt.Println(userID)
 
 	ch, err := h.config.RabbitMQConn.Channel()
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 	defer ch.Close()
 
@@ -65,7 +171,7 @@ func (h *BatchHandler) Create(c echo.Context) error {
 	c.Request().ParseMultipartForm(int64(maxMemory))
 	form, err := c.MultipartForm()
 	if err != nil {
-		return utils.RespondError(c, http.StatusBadRequest, err.Error())
+		return utils.RespondError(c, http.StatusBadRequest, "invalid form data")
 	}
 	files := form.File["files"]
 	if len(files) == 0 {
@@ -82,11 +188,11 @@ func (h *BatchHandler) Create(c echo.Context) error {
 		watermark := watermarks[0]
 		src, err := watermark.Open()
 		if err != nil {
-			return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 		}
 		mediaType, _, err := mime.ParseMediaType(watermark.Header.Get("Content-Type"))
 		if err != nil {
-			return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return utils.RespondError(c, http.StatusBadRequest, "invalid watermark file")
 		}
 		if mediaType != "image/jpeg" && mediaType != "image/png" {
 			return utils.RespondError(c, http.StatusBadRequest, "unsupported watermark file type")
@@ -100,7 +206,7 @@ func (h *BatchHandler) Create(c echo.Context) error {
 			ContentType: aws.String(mediaType),
 		})
 		if err != nil {
-			return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+			return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 		}
 		watermarkKey = fileName
 		watermarkURL = utils.GetObjectURL(h.config.S3CfDistribution, fileName)
@@ -113,24 +219,26 @@ func (h *BatchHandler) Create(c echo.Context) error {
 		WatermarkUrl: sql.NullString{String: watermarkURL, Valid: true},
 	})
 	if err != nil {
-		return utils.RespondError(c, http.StatusInternalServerError, err.Error())
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
 	}
 
+	var imageSuccessCount int
 	for _, file := range files {
 		src, err := file.Open()
 		if err != nil {
 			fmt.Printf("error opening file: %v", err)
 			continue
 		}
-		defer src.Close()
 
 		mediaType, _, err := mime.ParseMediaType(file.Header.Get("Content-Type"))
 		if err != nil {
 			fmt.Printf("error reading content-type: %v", err)
+			src.Close()
 			continue
 		}
 		if mediaType != "image/jpeg" && mediaType != "image/png" {
 			fmt.Printf("unsupported file type")
+			src.Close()
 			continue
 		}
 
@@ -144,6 +252,7 @@ func (h *BatchHandler) Create(c echo.Context) error {
 		})
 		if err != nil {
 			fmt.Printf("error uploading to s3: %v", err)
+			src.Close()
 			continue
 		}
 
@@ -168,7 +277,47 @@ func (h *BatchHandler) Create(c echo.Context) error {
 			continue
 		}
 		fmt.Printf("%s uploaded\n", image.OriginalUrl)
+		imageSuccessCount++
 	}
 
-	return utils.RespondJSON(c, http.StatusCreated, "new batch created", nil)
+	if imageSuccessCount == 0 {
+		h.dbQueries.HardDeleteBatchByID(c.Request().Context(), database.HardDeleteBatchByIDParams{
+			ID:     batch.ID,
+			UserID: userID,
+		})
+		return utils.RespondError(c, http.StatusBadRequest, "failed to create batch: no valid images uploaded")
+	}
+
+	return utils.RespondJSON(c, http.StatusCreated, "batch created successfully", nil)
+}
+
+// DeleteByID godoc
+// @Summary Delete batch by ID
+// @Description Delete a specific batch by its ID for the authenticated user
+// @Tags batches
+// @Produce json
+// @Security BearerAuth
+// @Param batchID path string true "Batch ID"
+// @Success 200 {object} utils.SuccessResponse{data=nil}
+// @Failure 400 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.ErrorResponse
+// @Failure 500 {object} utils.ErrorResponse
+// @Router /batches/{batchID} [delete]
+func (h *BatchHandler) DeleteByID(c echo.Context) error {
+	batchID := c.Param("batchID")
+	userID := c.Get("userID").(uuid.UUID)
+
+	batchUUID, err := uuid.Parse(batchID)
+	if err != nil {
+		return utils.RespondError(c, http.StatusBadRequest, "invalid batch ID")
+	}
+
+	err = h.dbQueries.DeleteBatchByID(c.Request().Context(), database.DeleteBatchByIDParams{
+		ID:     batchUUID,
+		UserID: userID,
+	})
+	if err != nil {
+		return utils.RespondError(c, http.StatusInternalServerError, "internal server error")
+	}
+	return utils.RespondJSON(c, http.StatusOK, "batch deleted successfully", nil)
 }

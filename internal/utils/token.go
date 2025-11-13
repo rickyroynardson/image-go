@@ -63,6 +63,9 @@ func GetAuthorizationToken(headers http.Header) (string, error) {
 		return "", errors.New("missing authorization headers")
 	}
 	prefix := "Bearer "
+	if !strings.HasPrefix(authorization, prefix) {
+		return "", errors.New("invalid authorization header format")
+	}
 	token := strings.TrimSpace(strings.TrimPrefix(authorization, prefix))
 	if token == "" {
 		return "", errors.New("invalid token")
