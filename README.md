@@ -2,6 +2,10 @@
 
 A scalable image watermark processing service built with Go. This application provides a REST API for batch image processing with optional watermarking, using a separate server and worker services.
 
+## Motivation
+
+Image Go was built to provide a scalable solution for batch image processing with watermarking capabilities. The service addresses the need for asynchronous image processing at scale, allowing users to upload multiple images and apply watermarks without blocking API requests. By leveraging RabbitMQ for task queuing and AWS S3 for storage, the system can handle high volumes of image processing tasks efficiently.
+
 ## Features
 
 - User authentication and authorization with JWT tokens
@@ -80,6 +84,20 @@ goose postgres [DB_URL] up
 
 Replace `[DB_URL]` with your PostgreSQL connection string.
 
+## Quick Start
+
+1. Set up your environment variables in `.env` file
+2. Run database migrations
+3. Start the server:
+```bash
+go run cmd/server/main.go
+```
+4. Start the worker in a separate terminal:
+```bash
+go run cmd/worker/main.go
+```
+5. Access the API at `http://localhost:3000` and Swagger docs at `http://localhost:3000/swagger/index.html`
+
 ## Running the Application
 
 ### Start the Server
@@ -124,6 +142,42 @@ http://localhost:3000/swagger/index.html
 ### Images (Requires Authentication)
 
 - `DELETE /api/v1/images/:imageID` - Delete an image
+
+## Usage
+
+### Register a User
+
+```bash
+curl -X POST http://localhost:3000/api/v1/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+```
+
+### Login
+
+```bash
+curl -X POST http://localhost:3000/api/v1/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+```
+
+### Create a Batch with Images
+
+```bash
+curl -X POST http://localhost:3000/api/v1/batches \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "name=My Batch" \
+  -F "files=@image1.jpg" \
+  -F "files=@image2.png" \
+  -F "watermark=@watermark.png"
+```
+
+### Get All Batches
+
+```bash
+curl -X GET http://localhost:3000/api/v1/batches \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
 
 ## Project Structure
 
@@ -189,3 +243,7 @@ Generate Swagger docs:
 ```bash
 swag init -g cmd/server/main.go -o cmd/server/docs --parseDependency --parseInternal
 ```
+
+## Contributing
+
+If you'd like to contribute, please fork the repository and open a pull request to the `main` branch.
