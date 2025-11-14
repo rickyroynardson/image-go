@@ -12,6 +12,7 @@ A scalable image watermark processing service built with Go. This application pr
 - RESTful API with Swagger documentation
 - Rate limiting and CORS support
 - Type-safe database queries using SQLC
+- TODO: Watermark image caching to reduce S3 API calls
 
 ## Architecture
 
