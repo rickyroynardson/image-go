@@ -1,6 +1,6 @@
 # Image Go
 
-A scalable image watermark processing service built with Go. This application provides a REST API for batch image processing with optional watermarking, using a microservices architecture with separate server and worker components.
+A scalable image watermark processing service built with Go. This application provides a REST API for batch image processing with optional watermarking, using a separate server and worker services.
 
 ## Features
 
@@ -8,10 +8,7 @@ A scalable image watermark processing service built with Go. This application pr
 - Batch image upload and processing
 - Optional watermark application to images
 - Asynchronous image processing using RabbitMQ
-- Image storage on AWS S3 with CloudFront CDN
-- RESTful API with Swagger documentation
-- Rate limiting and CORS support
-- Type-safe database queries using SQLC
+- Image storage on AWS S3
 - TODO: Watermark image caching to reduce S3 API calls
 
 ## Architecture
@@ -49,7 +46,7 @@ sqlc generate
 
 4. Generate Swagger documentation:
 ```bash
-swag init -g cmd/server/main.go
+swag init -g cmd/server/main.go -o cmd/server/docs --parseDependency --parseInternal
 ```
 
 ## Configuration
@@ -190,5 +187,5 @@ sqlc generate
 
 Generate Swagger docs:
 ```bash
-swag init -g cmd/server/main.go
+swag init -g cmd/server/main.go -o cmd/server/docs --parseDependency --parseInternal
 ```
